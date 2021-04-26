@@ -103,6 +103,14 @@ public:
      */
     void initTabPage(const QStringList &uris);
 
+
+    /*!
+     * \brief 获取一些无法直接获取的桌面文件的图标 - Get the icons of some desktop files that cannot be directly obtained
+     * \param fileInfo
+     * \return
+     */
+    QString getIconName();
+
     QStringList &getUris()
     {
         return m_uris;

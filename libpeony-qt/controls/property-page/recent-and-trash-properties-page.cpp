@@ -33,10 +33,61 @@
 #include <QUrl>
 
 #include <QCheckBox>
+#include <gio/gdesktopappinfo.h>
 
 using namespace Peony;
 //460 - 16 - 16 = 428
 #define FIXED_ROW_WIDTH 428;
+#define TRASH_PATH  /home/hxf/.local/share/Trash/files
+
+QString RecentAndTrashPropertiesPage::getIconName(bool startWithTrash){
+    if (m_fileInfo == nullptr)
+        return "application-x-desktop";
+
+    QString realPath;
+
+    if (startWithTrash) {
+        realPath = QStandardPaths::standardLocations(QStandardPaths::HomeLocation).first()
+                + "/.local/share/Trash/files/"
+                + m_fileInfo->displayName();
+    } else {
+        realPath = m_fileInfo->targetUri();
+    }
+    auto _desktop_file = g_desktop_app_info_new_from_filename(QUrl(realPath).path().toUtf8().constData());
+    if (_desktop_file) {
+        return QString(g_desktop_app_info_get_string(_desktop_file, "Icon"));
+    }
+    //在找不到图标时，返回默认图标 - When the icon is not found, return to the default icon
+    return "application-x-desktop";
+}
+
+void getFile(QString text){
+
+    qDebug() << "home path : " << QStandardPaths::standardLocations(QStandardPaths::HomeLocation).first() << "/.local/share/Trash/files";
+
+    QString path = QUrl(text).path();
+    qDebug() << "读取数据！！！" << text;
+    QList<QString> list;
+
+    if (!path.isEmpty()) {
+        QFile desktopFile(path);
+
+        bool fileOpen = desktopFile.open(QIODevice::ReadOnly);
+        qDebug() << "开始读取文件" << path.isEmpty() << fileOpen;
+        if (fileOpen) {
+            while (!desktopFile.atEnd()) {
+                list.append(QString(desktopFile.readLine()));
+            }
+        }
+
+        desktopFile.close();
+    }
+
+    for (QString str : list) {
+        qDebug() << "读取数据：：" << str;
+    }
+
+}
 
 RecentAndTrashPropertiesPage::RecentAndTrashPropertiesPage(const QStringList &uris, QWidget *parent) : PropertiesWindowTabIface(parent)
 {
@@ -62,7 +113,9 @@ void RecentAndTrashPropertiesPage::init()
     m_layout->setContentsMargins(16,16,16,0);
     this->setLayout(m_layout);
 
-    auto icon = new QPushButton(QIcon::fromTheme(m_fileInfo->iconName()), nullptr, this);
+    QString iconName = m_fileInfo->iconName();
+    qDebug() << "IconName :::" << iconName;
+    auto icon = new QPushButton(QIcon::fromTheme(iconName), nullptr, this);
     icon->setIconSize(QSize(48, 48));
     icon->setProperty("isIcon", true);
 
@@ -80,6 +133,11 @@ void RecentAndTrashPropertiesPage::init()
     addSeparator();
 
     bool startWithTrash = m_uri.startsWith("trash:///");
+
+    if (iconName == "application-x-desktop") {
+        qDebug() << "new Icon Name :: " << getIconName(startWithTrash);
+        icon->setIcon(QIcon::fromTheme(getIconName(startWithTrash)));
+    }
 
     if (startWithTrash) {
         if (m_uri == "trash:///") {
@@ -120,9 +178,9 @@ void RecentAndTrashPropertiesPage::init()
         } else {
             QLabel *sizeLabel =new QLabel(this);
             QLabel *locationLabel =new QLabel(this);
-            auto targetUri = FileUtils::getTargetUri(m_uri);
+            auto targetUri = m_fileInfo->targetUri();
             quint64 width = FIXED_ROW_WIDTH - locationLabel->fontMetrics().width(tr("Original Location: "));
-            locationLabel->setText(locationLabel->fontMetrics().elidedText(QUrl(targetUri).toDisplayString(), Qt::ElideMiddle,width));
+            locationLabel->setText(locationLabel->fontMetrics().elidedText(QUrl(targetUri).path(), Qt::ElideMiddle,width));
             locationLabel->setWordWrap(true);
 
             sizeLabel->setText(m_fileInfo->fileSize());
@@ -146,3 +204,5 @@ void RecentAndTrashPropertiesPage::saveAllChange()
     GlobalSettings::getInstance()->setValue("showTrashDialog", check);
     GlobalSettings::getInstance()->forceSync("showTrashDialog");
 }
+
+
